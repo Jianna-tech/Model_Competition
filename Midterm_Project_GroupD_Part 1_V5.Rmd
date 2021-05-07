@@ -1,0 +1,1238 @@
+---
+title: "Data Science Consulting:  Midterm Team Project -- Part 1"
+author: ""
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+set.seed(72)
+knitr::opts_chunk$set(echo = TRUE, comment="", warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=55))
+```
+
+![](/Users/ahsan.bukhari/Project/Columbia/Capstone/Mid_Term_Project/machine-learning-definition.jpeg)
+
+```{r libraries, echo = FALSE, warning=FALSE, message=FALSE}
+library(data.table)
+library(DT)
+#Install class package
+#install.packages('class')
+# Load class package
+library(class)
+library(rpart)
+#install.packages('e1071') 
+library(e1071) 
+
+#install.packages('randomForest')
+
+#random forest
+library(ranger)
+library(randomForest)
+#boost
+library(gbm)
+
+```
+
+```{r source_files, echo = FALSE, warning=FALSE, message=FALSE}
+
+setwd("/Users/ahsan.bukhari/Project/Columbia/Capstone/Mid_Term_Project/")
+
+```
+
+```{r functions, echo = FALSE, warning=FALSE, message=FALSE}
+
+##the normalization function is created
+nor <-function(x) { (x -min(x))/(max(x)-min(x))   }
+
+## knn accurary
+knn_accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+
+```
+
+```{r constants, echo = FALSE, warning=FALSE, message=FALSE}
+n.values <- c(0.01, 0.02, 0.03)
+iterations <- 3
+
+score_chart <- data.frame("SN" = NA  , "Model" = NA , "Sample Size" = NA , "A" =NA, "B" =NA, "C" =NA, "Score"=NA)
+#n.values[3]
+```
+
+```{r load_data, echo = FALSE, warning=FALSE, message=FALSE}
+
+dat <- fread(input =   "MNIST-fashion training set-49.csv")
+dat_test <- fread(input = "MNIST-fashion testing set-49.csv")
+
+```
+
+```{r generate_samples, echo = FALSE, warning=FALSE, message=FALSE}
+
+set.seed(100)
+list_600_1 = sample(1:nrow(dat), nrow(dat)*n.values[1], replace = F)
+list_600_2 = sample(1:nrow(dat), nrow(dat)*n.values[1], replace = F)
+list_600_3 = sample(1:nrow(dat), nrow(dat)*n.values[1], replace = F)
+list_1200_1 = sample(1:nrow(dat), nrow(dat)*n.values[2], replace = F)
+list_1200_2 = sample(1:nrow(dat), nrow(dat)*n.values[2], replace = F)
+list_1200_3 = sample(1:nrow(dat), nrow(dat)*n.values[2], replace = F)
+list_1800_1 = sample(1:nrow(dat), nrow(dat)*n.values[3], replace = F)
+list_1800_2 = sample(1:nrow(dat), nrow(dat)*n.values[3], replace = F)
+list_1800_3 = sample(1:nrow(dat), nrow(dat)*n.values[3], replace = F)
+
+# generate individual datasets
+
+dat_600_1 = dat[list_600_1,]
+dat_600_2 = dat[list_600_2,]
+dat_600_3 = dat[list_600_3,]
+dat_1200_1 = dat[list_1200_1,]
+dat_1200_2 = dat[list_1200_2,]
+dat_1200_3 = dat[list_1200_3,]
+dat_1800_1 = dat[list_1800_1,]
+dat_1800_2 = dat[list_1800_2,]
+dat_1800_3 = dat[list_1800_3,]
+
+
+```
+
+
+```{r clean_data, echo = FALSE, warning=FALSE, message=FALSE}
+
+# Data Normalization
+
+
+# Normalize Traiing Datasets
+dat_600_1_norm <- as.data.frame(lapply(dat_600_1[,c(2:50)], nor))
+dat_600_2_norm <- as.data.frame(lapply(dat_600_2[,c(2:50)], nor))
+dat_600_3_norm <- as.data.frame(lapply(dat_600_3[,c(2:50)], nor))
+dat_1200_1_norm <- as.data.frame(lapply(dat_1200_1[,c(2:50)], nor))
+dat_1200_2_norm <- as.data.frame(lapply(dat_1200_2[,c(2:50)], nor))
+dat_1200_3_norm <- as.data.frame(lapply(dat_1200_3[,c(2:50)], nor))
+dat_1800_1_norm <- as.data.frame(lapply(dat_1800_1[,c(2:50)], nor))
+dat_1800_2_norm <- as.data.frame(lapply(dat_1800_2[,c(2:50)], nor))
+dat_1800_3_norm <- as.data.frame(lapply(dat_1800_3[,c(2:50)], nor))
+
+# Normalize Test Dataset
+dat_test_norm <- as.data.frame(lapply(dat_test[,c(2:50)], nor))
+
+
+# Data Scaling 
+
+
+# scale 600 training dataset
+dat_600_1_svm = dat_600_1[,.(label = as.numeric(factor(label)))]
+dat_600_1_svm = cbind(dat_600_1_svm, scale(dat_600_1[,c(2:50)]))
+dat_600_2_svm = dat_600_2[,.(label = as.numeric(factor(label)))]
+dat_600_2_svm = cbind(dat_600_2_svm, scale(dat_600_2[,c(2:50)]))
+dat_600_3_svm = dat_600_3[,.(label = as.numeric(factor(label)))]
+dat_600_3_svm = cbind(dat_600_3_svm, scale(dat_600_3[,c(2:50)]))
+# scale 1200 training dataset
+dat_1200_1_svm = dat_1200_1[,.(label = as.numeric(factor(label)))]
+dat_1200_1_svm = cbind(dat_1200_1_svm, scale(dat_1200_1[,c(2:50)]))
+dat_1200_2_svm = dat_1200_2[,.(label = as.numeric(factor(label)))]
+dat_1200_2_svm = cbind(dat_1200_2_svm, scale(dat_1200_2[,c(2:50)]))
+dat_1200_3_svm = dat_1200_3[,.(label = as.numeric(factor(label)))]
+dat_1200_3_svm = cbind(dat_1200_3_svm, scale(dat_1200_3[,c(2:50)]))
+# scale 1800 training dataset
+dat_1800_1_svm = dat_1800_1[,.(label = as.numeric(factor(label)))]
+dat_1800_1_svm = cbind(dat_1800_1_svm, scale(dat_1800_1[,c(2:50)]))
+dat_1800_2_svm = dat_1800_2[,.(label = as.numeric(factor(label)))]
+dat_1800_2_svm = cbind(dat_1800_2_svm, scale(dat_1800_2[,c(2:50)]))
+dat_1800_3_svm = dat_1800_3[,.(label = as.numeric(factor(label)))]
+dat_1800_3_svm = cbind(dat_1800_3_svm, scale(dat_1800_3[,c(2:50)]))
+
+
+# scale test dataset
+dat_test_svm = dat_test[,.(label = as.numeric(factor(label)))]
+dat_test_svm = cbind(dat_test_svm, scale(dat_test[,c(2:50)]))
+
+
+```
+
+
+
+
+## Introduction {.tabset}
+
+
+### Model 1
+
+
+
+```{r code_model1_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+
+# KNN Model with K=25
+
+
+knn.calculator <- function(train_dat_norm, test_dat_norm,train_dat, test_labels,k_value, model_num){
+  
+  library(class)
+  model = knn(train_dat_norm,test_dat_norm,cl=train_dat$label,k=k_value) 
+  
+  A <- nrow(train_dat_norm)/60000
+  B <- min(1,system.time(knn(train_dat_norm,test_dat_norm,cl=train_dat$label,k=k_value))[1]/60)
+  
+  # calculate C
+  tab <- table(model,test_labels)
+  C <- (100 - as.numeric(knn_accuracy(tab)))/100
+  
+  
+  Score <- 0.15 * A + 0.1 * B + 0.75 * C 
+  
+  df <- data.frame(model_num, nrow(train_dat_norm), A, B, C, Score)
+  return(df)
+}
+
+
+#knn.calculator(dat_600_1_norm,dat_test_norm, dat_600_1,dat_test$label, 25, 'Model_1')
+
+
+```
+
+
+```{r load_model1,echo = FALSE, warning=FALSE, message=FALSE}
+
+
+# calculate scores 
+knnscores_25 <- data.frame(rbind(
+          knn.calculator(dat_600_1_norm,dat_test_norm,dat_600_1, dat_test$label, 25, 'Model_1'),
+          knn.calculator(dat_600_2_norm,dat_test_norm,dat_600_2, dat_test$label, 25, 'Model_1'),
+          knn.calculator(dat_600_3_norm,dat_test_norm,dat_600_3, dat_test$label, 25, 'Model_1'),     
+          knn.calculator(dat_1200_1_norm,dat_test_norm,dat_1200_1, dat_test$label, 25, 'Model_1'),
+          knn.calculator(dat_1200_2_norm,dat_test_norm,dat_1200_2, dat_test$label, 25, 'Model_1'),
+          knn.calculator(dat_1200_3_norm,dat_test_norm,dat_1200_3, dat_test$label, 25, 'Model_1'),
+          knn.calculator(dat_1800_1_norm,dat_test_norm,dat_1800_1, dat_test$label, 25, 'Model_1'),
+          knn.calculator(dat_1800_2_norm,dat_test_norm,dat_1800_2, dat_test$label, 25, 'Model_1'),
+          knn.calculator(dat_1800_3_norm,dat_test_norm,dat_1800_3, dat_test$label, 25, 'Model_1')
+          ))
+
+score_chart <- rbind(score_chart,list(1:9, knnscores_25$model_num,c('mod1_knn_600_1','mod1_knn_600_2','mod1_knn_600_3', 'mod1_knn_1200_1','mod1_knn_1200_2','mod1_knn_1200_3','mod1_knn_1800_1','mod1_knn_1800_2','mod1_knn_1800_3'),knnscores_25$nrow.train_dat_norm.,knnscores_25$A, knnscores_25$B, knnscores_25$C,knnscores_25$Score))
+
+datatable(score_chart[c(1:9),], rownames = FALSE)
+
+```
+
+### Model 2
+
+
+```{r code_model2_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+
+#sqrt(1800)
+
+# calculate scores 
+knnscores_42 <- data.frame(rbind(
+          knn.calculator(dat_600_1_norm,dat_test_norm,dat_600_1, dat_test$label, 42, 'Model_2'),
+          knn.calculator(dat_600_2_norm,dat_test_norm,dat_600_2, dat_test$label, 42, 'Model_2'),
+          knn.calculator(dat_600_3_norm,dat_test_norm,dat_600_3, dat_test$label, 42, 'Model_2'),     
+          knn.calculator(dat_1200_1_norm,dat_test_norm,dat_1200_1, dat_test$label, 42, 'Model_2'),
+          knn.calculator(dat_1200_2_norm,dat_test_norm,dat_1200_2, dat_test$label, 42, 'Model_2'),
+          knn.calculator(dat_1200_3_norm,dat_test_norm,dat_1200_3, dat_test$label, 42, 'Model_2'),
+          knn.calculator(dat_1800_1_norm,dat_test_norm,dat_1800_1, dat_test$label, 42, 'Model_2'),
+          knn.calculator(dat_1800_2_norm,dat_test_norm,dat_1800_2, dat_test$label, 42, 'Model_2'),
+          knn.calculator(dat_1800_3_norm,dat_test_norm,dat_1800_3, dat_test$label, 42, 'Model_2')
+          ))
+
+
+```
+
+```{r load_model2,echo = FALSE, warning=FALSE, message=FALSE}
+
+score_chart <- rbind(score_chart,list(10:18, knnscores_42$model_num,c('mod2_knn_600_1','mod2_knn_600_2','mod2_knn_600_3', 'mod2_knn_1200_1','mod2_knn_1200_2','mod2_knn_1200_3','mod2_knn_1800_1','mod2_knn_1800_2','mod2_knn_1800_3'),knnscores_42$nrow.train_dat_norm.,knnscores_42$A, knnscores_42$B, knnscores_42$C,knnscores_42$Score))
+
+
+datatable(score_chart[c(10:18),], rownames = FALSE)
+
+
+
+```
+
+### Model 3
+
+
+```{r code_model3_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+
+# calculate SVM 
+
+svm.calculator <- function(train_dat_norm, test_dat_norm,train_dat,g_value,c_value, model_num){
+  
+  library(e1071)
+  model = svm(formula = label ~ ., data = train_dat_norm, type = 'C-classification', kernel = 'linear', gamma = g_value, cost = c_value, cross = 5)
+  
+  
+  A <- nrow(train_dat_norm)/nrow(dat)
+  B <- min(1,system.time(svm(formula = label ~ ., data = train_dat_norm, type = 'C-classification', kernel = 'linear', gamma = g_value, cost = c_value, cross = 5))[1]/60)
+  
+  # calculate C
+  # fit model 
+  svm_pred = predict(model, newdata = test_dat_norm[,c(2:50)])
+  C = 1 - mean(test_dat_norm$label == svm_pred)
+  
+  # Score 
+  Score <- 0.15 * A + 0.1 * B + 0.75 * C 
+  
+  df <- data.frame(model_num, nrow(train_dat_norm), A, B, C, Score)
+  return(df)
+}
+
+
+```
+
+```{r load_model3,echo = FALSE, warning=FALSE, message=FALSE}
+
+# load svm model 
+
+svmscores_10 <- data.frame(rbind(
+          svm.calculator(dat_600_1_svm,dat_test_svm,dat, 0.001,10, 'Model_3'),
+          svm.calculator(dat_600_2_svm,dat_test_svm,dat, 0.001,10, 'Model_3'),
+          svm.calculator(dat_600_3_svm,dat_test_svm,dat, 0.001,10, 'Model_3'),     
+          svm.calculator(dat_1200_1_svm,dat_test_svm,dat, 0.001,10, 'Model_3'),
+          svm.calculator(dat_1200_2_svm,dat_test_svm,dat, 0.001,10, 'Model_3'),
+          svm.calculator(dat_1200_3_svm,dat_test_svm,dat, 0.001,10, 'Model_3'),
+          svm.calculator(dat_1800_1_svm,dat_test_svm,dat, 0.001,10, 'Model_3'),
+          svm.calculator(dat_1800_2_svm,dat_test_svm,dat, 0.001,10, 'Model_3'),
+          svm.calculator(dat_1800_3_svm,dat_test_svm,dat, 0.001,10, 'Model_3')
+          ))
+
+
+score_chart <- rbind(score_chart,list(19:27, svmscores_10$model_num,c('mod3_svm_600_1','mod3_svm_600_2','mod3_svm_600_3', 'mod3_svm_1200_1','mod3_svm_1200_2','mod3_svm_1200_3','mod3_svm_1800_1','mod3_svm_1800_2','mod3_svm_1800_3'),svmscores_10$nrow.train_dat_norm.,svmscores_10$A, svmscores_10$B, svmscores_10$C,svmscores_10$Score))
+
+datatable(score_chart[c(19:27),], rownames = FALSE)
+
+```
+
+### Model 4
+
+
+```{r code_model4_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+# load functions 
+
+class.tree.calculator <- function(train_dat, test_dat){
+  
+  library(rpart)
+  model = rpart(label~.,data=train_dat,method='class',control=rpart.control(minbucket = 25))
+  
+  A <- nrow(train_dat)/60000
+  B <- min(1,system.time(rpart(label~.,data=train_dat,method='class',control=rpart.control(minbucket = 25)))[1]/60)
+  
+  # calculate C
+  fit_test <- predict(model, newdata = test_dat,type = 'class')
+  accuracy <- mean(test_dat$label == fit_test)   #  0.6519
+  C <- 1 - accuracy
+  
+  Score <- 0.15 * A + 0.1 * B + 0.75 * C 
+  
+  df <- data.frame('Model_4', nrow(train_dat), A, B, C, Score)
+  return(df)
+}
+
+
+```
+
+```{r load_model4,echo = FALSE, warning=FALSE, message=FALSE}
+# calculate scores 
+treescores <- data.frame(rbind(
+          class.tree.calculator(dat_600_1,dat_test),
+          class.tree.calculator(dat_600_2,dat_test),
+          class.tree.calculator(dat_600_3,dat_test),     
+          class.tree.calculator(dat_1200_1,dat_test),
+          class.tree.calculator(dat_1200_2,dat_test),
+          class.tree.calculator(dat_1200_3,dat_test),
+          class.tree.calculator(dat_1800_1,dat_test),
+          class.tree.calculator(dat_1800_2,dat_test),
+          class.tree.calculator(dat_1800_3,dat_test)
+          ))
+
+score_chart <- rbind(score_chart,list(28:36, treescores$X.Model_4.,c('mod4_ct_600_1','mod4_ct_600_2','mod4_ct_600_3', 'mod4_ct_1200_1','mod4_ct_1200_2','mod4_ct_1200_3','mod4_ct_1800_1','mod4_ct_1800_2','mod4_ct_1800_3'),treescores$nrow.train_dat.,treescores$A, treescores$B,
+                       treescores$C,treescores$Score))
+
+datatable(score_chart[c(28:36),], rownames = FALSE)
+
+```
+
+### Model 5
+
+
+```{r code_model5_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+regression.train <- function(dat, alpha, K){
+  library(glmnet)
+  X <-  as.matrix(dat[, -1])
+  y <-  as.factor(dat$label)
+  set.seed(1031)
+  cv.model <- cv.glmnet(x = X, 
+                        y = y, 
+                        alpha = alpha,
+                        family = 'multinomial',
+                        type.measure = 'class',
+                        nfolds = K)
+  return(cv.model)
+}
+
+lasso.ridge.calculator <- function(train_dat, alpha, K, test_dat){
+  model <- regression.train(train_dat, alpha, K)
+  A <- nrow(train_dat)/60000
+  B <- min(1,system.time(regression.train(train_dat, alpha, K))[1]/60)
+  # calculate C
+  fit_test <- predict(model, as.matrix(test_dat[, -1]),type = 'class')
+  accuracy <- mean(test_dat$label == fit_test)   # 0.7755
+  C <- 1 - accuracy
+  Score <- 0.15 * A + 0.1 * B + 0.75 * C 
+  #df <- data.frame(A, B, C, Score)
+  df <- data.frame('Model_5', nrow(train_dat), A, B, C, Score)
+  return(df)
+}
+```
+
+```{r load_model5,echo = FALSE, warning=FALSE, message=FALSE}
+# calculate scores 
+ridgescores <- data.frame(rbind(
+  lasso.ridge.calculator(dat_600_1,alpha=0, K=5, dat_test),
+  lasso.ridge.calculator(dat_600_2,alpha=0, K=5, dat_test),
+  lasso.ridge.calculator(dat_600_3,alpha=0, K=5, dat_test),     
+  lasso.ridge.calculator(dat_1200_1,alpha=0, K=5, dat_test),
+  lasso.ridge.calculator(dat_1200_2,alpha=0, K=5, dat_test),
+  lasso.ridge.calculator(dat_1200_3,alpha=0, K=5, dat_test),
+  lasso.ridge.calculator(dat_1800_1,alpha=0, K=5, dat_test),
+  lasso.ridge.calculator(dat_1800_2,alpha=0, K=5, dat_test),
+  lasso.ridge.calculator(dat_1800_3,alpha=0, K=5, dat_test)
+))
+
+score_chart <- rbind(score_chart,list(37:45, ridgescores$X.Model_5.,c('mod5_lr_600_1','mod5_lr_600_2','mod5_lr_600_3', 'mod5_lr_1200_1','mod5_lr_1200_2','mod5_lr_1200_3','mod5_lr_1800_1','mod5_lr_1800_2','mod5_lr_1800_3'),ridgescores$nrow.train_dat.,ridgescores$A, ridgescores$B,
+                       ridgescores$C,ridgescores$Score))
+
+datatable(score_chart[c(37:45),], rownames = FALSE)
+
+
+```
+
+### Model 6
+
+
+```{r code_model6_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+lasso.ridge.calculator1 <- function(train_dat, alpha, K, test_dat){
+  model <- regression.train(train_dat, alpha, K)
+  A <- nrow(train_dat)/60000
+  B <- min(1,system.time(regression.train(train_dat, alpha, K))[1]/60)
+  # calculate C
+  fit_test <- predict(model, as.matrix(test_dat[, -1]),type = 'class')
+  accuracy <- mean(test_dat$label == fit_test)   # 0.7755
+  C <- 1 - accuracy
+  Score <- 0.15 * A + 0.1 * B + 0.75 * C 
+  #df <- data.frame(A, B, C, Score)
+  df <- data.frame('Model_6', nrow(train_dat), A, B, C, Score)
+  return(df)
+}
+```
+
+
+
+```{r load_model6,echo = FALSE, warning=FALSE, message=FALSE}
+lassoscores <- data.frame(rbind(
+  lasso.ridge.calculator1(dat_600_1,alpha=1, K=5, dat_test),
+  lasso.ridge.calculator1(dat_600_2,alpha=1, K=5, dat_test),
+  lasso.ridge.calculator1(dat_600_3,alpha=1, K=5, dat_test),     
+  lasso.ridge.calculator1(dat_1200_1,alpha=1, K=5, dat_test),
+  lasso.ridge.calculator1(dat_1200_2,alpha=1, K=5, dat_test),
+  lasso.ridge.calculator1(dat_1200_3,alpha=1, K=5, dat_test),
+  lasso.ridge.calculator1(dat_1800_1,alpha=1, K=5, dat_test),
+  lasso.ridge.calculator1(dat_1800_2,alpha=1, K=5, dat_test),
+  lasso.ridge.calculator1(dat_1800_3,alpha=1, K=5, dat_test)
+))
+
+score_chart <- rbind(score_chart,list(46:54, lassoscores$X.Model_6.,c('mod6_lr1_600_1','mod6_lr1_600_2','mod6_lr1_600_3', 'mod6_lr1_1200_1','mod6_lr1_1200_2','mod6_lr1_1200_3','mod6_lr1_1800_1','mod6_lr1_1800_2','mod6_lr1_1800_3'),lassoscores$nrow.train_dat.,lassoscores$A, lassoscores$B,
+                       lassoscores$C,lassoscores$Score))
+
+datatable(score_chart[c(46:54),], rownames = FALSE)
+
+
+```
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+#model_456 <- data.frame(rbind(treescores, ridgescores,lassoscores))
+#sequence <- c(28:54)
+
+# scoreboard for model 4, model 5, model 6
+#model_456 <- data.frame(cbind(sequence,model_456))
+```
+
+
+
+### Model 7
+
+
+```{r code_model7_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+#random forest model 1
+
+#head(dat_600_1_svm)
+
+#600
+time_rf_600_1 = Sys.time()
+mod_rf_600_1 = ranger(label ~ ., data = dat_600_1_svm)
+time_rf_600_2 = Sys.time()
+mod_rf_600_2 = ranger(label ~ ., data = dat_600_2_svm)
+time_rf_600_3 = Sys.time()
+mod_rf_600_3 = ranger(label ~ ., data = dat_600_3_svm)
+time_rf_600_4 = Sys.time()
+#1200
+time_rf_1200_1 = Sys.time()
+mod_rf_1200_1 = ranger(label ~ ., data = dat_1200_1_svm)
+time_rf_1200_2 = Sys.time()
+mod_rf_1200_2 = ranger(label ~ ., data = dat_1200_2_svm)
+time_rf_1200_3 = Sys.time()
+mod_rf_1200_3 = ranger(label ~ ., data = dat_1200_3_svm)
+time_rf_1200_4 = Sys.time()
+#1800
+time_rf_1800_1 = Sys.time()
+mod_rf_1800_1 = ranger(label ~ ., data = dat_1800_1_svm)
+time_rf_1800_2 = Sys.time()
+mod_rf_1800_2 = ranger(label ~ ., data = dat_1800_2_svm)
+time_rf_1800_3 = Sys.time()
+mod_rf_1800_3 = ranger(label ~ ., data = dat_1800_3_svm)
+time_rf_1800_4 = Sys.time()
+
+#prediction
+#600
+pred_rf_600_1 = predict(mod_rf_600_1, data = dat_test_svm)
+pred_rf_600_2 = predict(mod_rf_600_2, data = dat_test_svm)
+pred_rf_600_3 = predict(mod_rf_600_3, data = dat_test_svm)
+#1200
+pred_rf_1200_1 = predict(mod_rf_1200_1, data = dat_test_svm)
+pred_rf_1200_2 = predict(mod_rf_1200_2, data = dat_test_svm)
+pred_rf_1200_3 = predict(mod_rf_1200_3, data = dat_test_svm)
+#1800
+pred_rf_1800_1 = predict(mod_rf_1800_1, data = dat_test_svm)
+pred_rf_1800_2 = predict(mod_rf_1800_2, data = dat_test_svm)
+pred_rf_1800_3 = predict(mod_rf_1800_3, data = dat_test_svm)
+
+#misclassified proportion
+#600
+accu_rf_600_1 = mean(dat_test_svm$label == pred_rf_600_1$predictions)
+accu_rf_600_2 = mean(dat_test_svm$label == pred_rf_600_2$predictions)
+accu_rf_600_3 = mean(dat_test_svm$label == pred_rf_600_3$predictions)
+#1200
+accu_rf_1200_1 = mean(dat_test_svm$label == pred_rf_1200_1$predictions)
+accu_rf_1200_2 = mean(dat_test_svm$label == pred_rf_1200_2$predictions)
+accu_rf_1200_3 = mean(dat_test_svm$label == pred_rf_1200_3$predictions)
+#1800
+accu_rf_1800_1 = mean(dat_test_svm$label == pred_rf_1800_1$predictions)
+accu_rf_1800_2 = mean(dat_test_svm$label == pred_rf_1800_2$predictions)
+accu_rf_1800_3 = mean(dat_test_svm$label == pred_rf_1800_3$predictions)
+
+#A
+#600
+A_mod_rf_600_1 = nrow(dat_600_1_svm)/nrow(dat)
+A_mod_rf_600_2 = nrow(dat_600_2_svm)/nrow(dat)
+A_mod_rf_600_3 = nrow(dat_600_3_svm)/nrow(dat)
+#1200
+A_mod_rf_1200_1 = nrow(dat_1200_1_svm)/nrow(dat)
+A_mod_rf_1200_2 = nrow(dat_1200_2_svm)/nrow(dat)
+A_mod_rf_1200_3 = nrow(dat_1200_3_svm)/nrow(dat)
+#1800
+A_mod_rf_1800_1 = nrow(dat_1800_1_svm)/nrow(dat)
+A_mod_rf_1800_2 = nrow(dat_1800_2_svm)/nrow(dat)
+A_mod_rf_1800_3 = nrow(dat_1800_3_svm)/nrow(dat)
+
+#B
+#600
+B_mod_rf_600_1 = min(1,as.numeric(time_rf_600_2 - time_rf_600_1))
+B_mod_rf_600_2 = min(1,as.numeric(time_rf_600_3 - time_rf_600_2))
+B_mod_rf_600_3 = min(1,as.numeric(time_rf_600_4 - time_rf_600_3))
+#1200
+B_mod_rf_1200_1 = min(1,as.numeric(time_rf_1200_2 - time_rf_1200_1))
+B_mod_rf_1200_2 = min(1,as.numeric(time_rf_1200_3 - time_rf_1200_2))
+B_mod_rf_1200_3 = min(1,as.numeric(time_rf_1200_4 - time_rf_1200_3))
+#1800
+B_mod_rf_1800_1 = min(1,as.numeric(time_rf_1800_2 - time_rf_1800_1))
+B_mod_rf_1800_2 = min(1,as.numeric(time_rf_1800_3 - time_rf_1800_2))
+B_mod_rf_1800_3 = min(1,as.numeric(time_rf_1800_4 - time_rf_1800_3))
+
+#C
+#600
+C_mod_rf_600_1 = 1 - accu_rf_600_1
+C_mod_rf_600_2 = 1 - accu_rf_600_2
+C_mod_rf_600_3 = 1 - accu_rf_600_3
+#1200
+C_mod_rf_1200_1 = 1 - accu_rf_1200_1
+C_mod_rf_1200_2 = 1 - accu_rf_1200_2
+C_mod_rf_1200_3 = 1 - accu_rf_1200_3
+#1800
+C_mod_rf_1800_1 = 1 - accu_rf_1800_1
+C_mod_rf_1800_2 = 1 - accu_rf_1800_2
+C_mod_rf_1800_3 = 1 - accu_rf_1800_3
+
+#points
+#600
+points_rf_600_1 = 0.15*A_mod_rf_600_1 + 0.1*B_mod_rf_600_1 + 0.75*C_mod_rf_600_1
+points_rf_600_2 = 0.15*A_mod_rf_600_2 + 0.1*B_mod_rf_600_2 + 0.75*C_mod_rf_600_2
+points_rf_600_3 = 0.15*A_mod_rf_600_3 + 0.1*B_mod_rf_600_3 + 0.75*C_mod_rf_600_3
+#1200
+points_rf_1200_1 = 0.15*A_mod_rf_1200_1 + 0.1*B_mod_rf_1200_1 + 0.75*C_mod_rf_1200_1
+points_rf_1200_2 = 0.15*A_mod_rf_1200_2 + 0.1*B_mod_rf_1200_2 + 0.75*C_mod_rf_1200_2
+points_rf_1200_3 = 0.15*A_mod_rf_1200_3 + 0.1*B_mod_rf_1200_3 + 0.75*C_mod_rf_1200_3
+#1800
+points_rf_1800_1 = 0.15*A_mod_rf_1800_1 + 0.1*B_mod_rf_1800_1 + 0.75*C_mod_rf_1800_1
+points_rf_1800_2 = 0.15*A_mod_rf_1800_2 + 0.1*B_mod_rf_1800_2 + 0.75*C_mod_rf_1800_2
+points_rf_1800_3 = 0.15*A_mod_rf_1800_3 + 0.1*B_mod_rf_1800_3 + 0.75*C_mod_rf_1800_3
+
+#score chart
+#600
+score_chart <- rbind(score_chart,list(55,'Model_7','mod7_rf_600_1',600,A_mod_rf_600_1, B_mod_rf_600_1, C_mod_rf_600_1,points_rf_600_1))
+score_chart <- rbind(score_chart,list(56,'Model_7','mod7_rf_600_2',600,A_mod_rf_600_2, B_mod_rf_600_2, C_mod_rf_600_2,points_rf_600_2))
+score_chart <- rbind(score_chart,list(57,'Model_7','mod7_rf_600_2',600,A_mod_rf_600_3, B_mod_rf_600_3, C_mod_rf_600_3,points_rf_600_3))
+#1200
+score_chart <- rbind(score_chart,list(58,'Model_7','mod7_rf_1200_1',1200,A_mod_rf_1200_1, B_mod_rf_1200_1, C_mod_rf_1200_1,points_rf_1200_1))
+score_chart <- rbind(score_chart,list(59,'Model_7','mod7_rf_1200_2',1200,A_mod_rf_1200_2, B_mod_rf_1200_2, C_mod_rf_1200_2,points_rf_1200_2))
+score_chart <- rbind(score_chart,list(60,'Model_7','mod7_rf_1200_3',1200,A_mod_rf_1200_3, B_mod_rf_1200_3, C_mod_rf_1200_3,points_rf_1200_3))
+#1800
+score_chart <- rbind(score_chart,list(61,'Model_7','mod7_rf_1800_1',1800,A_mod_rf_1800_1, B_mod_rf_1800_1, C_mod_rf_1800_1,points_rf_1800_1))
+score_chart <- rbind(score_chart,list(62,'Model_7','mod7_rf_1800_2',1800,A_mod_rf_1800_2, B_mod_rf_1800_2, C_mod_rf_1800_2,points_rf_1800_2))
+score_chart <- rbind(score_chart,list(63,'Model_7','mod7_rf_1800_3',1800,A_mod_rf_1800_3, B_mod_rf_1800_3, C_mod_rf_1800_3,points_rf_1800_3))
+
+```
+
+```{r load_model7,echo = FALSE, warning=FALSE, message=FALSE}
+datatable(score_chart[c(55:63),], rownames = FALSE)
+
+```
+
+### Model 8
+
+
+```{r code_model8_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+#random forest model 2
+
+#600
+time_rf_600_1 = Sys.time()
+mod_rf_600_1 = ranger(label ~ ., data = dat_600_1_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_600_2 = Sys.time()
+mod_rf_600_2 = ranger(label ~ ., data = dat_600_2_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_600_3 = Sys.time()
+mod_rf_600_3 = ranger(label ~ ., data = dat_600_3_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_600_4 = Sys.time()
+#1200
+time_rf_1200_1 = Sys.time()
+mod_rf_1200_1 = ranger(label ~ ., data = dat_1200_1_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_1200_2 = Sys.time()
+mod_rf_1200_2 = ranger(label ~ ., data = dat_1200_2_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_1200_3 = Sys.time()
+mod_rf_1200_3 = ranger(label ~ ., data = dat_1200_3_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_1200_4 = Sys.time()
+#1800
+time_rf_1800_1 = Sys.time()
+mod_rf_1800_1 = ranger(label ~ ., data = dat_1800_1_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_1800_2 = Sys.time()
+mod_rf_1800_2 = ranger(label ~ ., data = dat_1800_2_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_1800_3 = Sys.time()
+mod_rf_1800_3 = ranger(label ~ ., data = dat_1800_3_svm,num.trees = 100,mtry = 7,min.node.size = 1)
+time_rf_1800_4 = Sys.time()
+
+#prediction
+#600
+pred_rf_600_1 = predict(mod_rf_600_1, data = dat_test_svm)
+pred_rf_600_2 = predict(mod_rf_600_2, data = dat_test_svm)
+pred_rf_600_3 = predict(mod_rf_600_3, data = dat_test_svm)
+#1200
+pred_rf_1200_1 = predict(mod_rf_1200_1, data = dat_test_svm)
+pred_rf_1200_2 = predict(mod_rf_1200_2, data = dat_test_svm)
+pred_rf_1200_3 = predict(mod_rf_1200_3, data = dat_test_svm)
+#1800
+pred_rf_1800_1 = predict(mod_rf_1800_1, data = dat_test_svm)
+pred_rf_1800_2 = predict(mod_rf_1800_2, data = dat_test_svm)
+pred_rf_1800_3 = predict(mod_rf_1800_3, data = dat_test_svm)
+
+#misclassified proportion
+#600
+accu_rf_600_1 = mean(dat_test_svm$label == pred_rf_600_1$predictions)
+accu_rf_600_2 = mean(dat_test_svm$label == pred_rf_600_2$predictions)
+accu_rf_600_3 = mean(dat_test_svm$label == pred_rf_600_3$predictions)
+#1200
+accu_rf_1200_1 = mean(dat_test_svm$label == pred_rf_1200_1$predictions)
+accu_rf_1200_2 = mean(dat_test_svm$label == pred_rf_1200_2$predictions)
+accu_rf_1200_3 = mean(dat_test_svm$label == pred_rf_1200_3$predictions)
+#1800
+accu_rf_1800_1 = mean(dat_test_svm$label == pred_rf_1800_1$predictions)
+accu_rf_1800_2 = mean(dat_test_svm$label == pred_rf_1800_2$predictions)
+accu_rf_1800_3 = mean(dat_test_svm$label == pred_rf_1800_3$predictions)
+
+#A
+#600
+A_mod_rf_600_1 = nrow(dat_600_1)/nrow(dat)
+A_mod_rf_600_2 = nrow(dat_600_2)/nrow(dat)
+A_mod_rf_600_3 = nrow(dat_600_3)/nrow(dat)
+#1200
+A_mod_rf_1200_1 = nrow(dat_1200_1)/nrow(dat)
+A_mod_rf_1200_2 = nrow(dat_1200_2)/nrow(dat)
+A_mod_rf_1200_3 = nrow(dat_1200_3)/nrow(dat)
+#1800
+A_mod_rf_1800_1 = nrow(dat_1800_1)/nrow(dat)
+A_mod_rf_1800_2 = nrow(dat_1800_2)/nrow(dat)
+A_mod_rf_1800_3 = nrow(dat_1800_3)/nrow(dat)
+
+#B
+#600
+B_mod_rf_600_1 = min(1,as.numeric(time_rf_600_2 - time_rf_600_1))
+B_mod_rf_600_2 = min(1,as.numeric(time_rf_600_3 - time_rf_600_2))
+B_mod_rf_600_3 = min(1,as.numeric(time_rf_600_4 - time_rf_600_3))
+#1200
+B_mod_rf_1200_1 = min(1,as.numeric(time_rf_1200_2 - time_rf_1200_1))
+B_mod_rf_1200_2 = min(1,as.numeric(time_rf_1200_3 - time_rf_1200_2))
+B_mod_rf_1200_3 = min(1,as.numeric(time_rf_1200_4 - time_rf_1200_3))
+#1800
+B_mod_rf_1800_1 = min(1,as.numeric(time_rf_1800_2 - time_rf_1800_1))
+B_mod_rf_1800_2 = min(1,as.numeric(time_rf_1800_3 - time_rf_1800_2))
+B_mod_rf_1800_3 = min(1,as.numeric(time_rf_1800_4 - time_rf_1800_3))
+
+#C
+#600
+C_mod_rf_600_1 = 1 - accu_rf_600_1
+C_mod_rf_600_2 = 1 - accu_rf_600_2
+C_mod_rf_600_3 = 1 - accu_rf_600_3
+#1200
+C_mod_rf_1200_1 = 1 - accu_rf_1200_1
+C_mod_rf_1200_2 = 1 - accu_rf_1200_2
+C_mod_rf_1200_3 = 1 - accu_rf_1200_3
+#1800
+C_mod_rf_1800_1 = 1 - accu_rf_1800_1
+C_mod_rf_1800_2 = 1 - accu_rf_1800_2
+C_mod_rf_1800_3 = 1 - accu_rf_1800_3
+
+#points
+#600
+points_rf_600_1 = 0.15*A_mod_rf_600_1 + 0.1*B_mod_rf_600_1 + 0.75*C_mod_rf_600_1
+points_rf_600_2 = 0.15*A_mod_rf_600_2 + 0.1*B_mod_rf_600_2 + 0.75*C_mod_rf_600_2
+points_rf_600_3 = 0.15*A_mod_rf_600_3 + 0.1*B_mod_rf_600_3 + 0.75*C_mod_rf_600_3
+#1200
+points_rf_1200_1 = 0.15*A_mod_rf_1200_1 + 0.1*B_mod_rf_1200_1 + 0.75*C_mod_rf_1200_1
+points_rf_1200_2 = 0.15*A_mod_rf_1200_2 + 0.1*B_mod_rf_1200_2 + 0.75*C_mod_rf_1200_2
+points_rf_1200_3 = 0.15*A_mod_rf_1200_3 + 0.1*B_mod_rf_1200_3 + 0.75*C_mod_rf_1200_3
+#1800
+points_rf_1800_1 = 0.15*A_mod_rf_1800_1 + 0.1*B_mod_rf_1800_1 + 0.75*C_mod_rf_1800_1
+points_rf_1800_2 = 0.15*A_mod_rf_1800_2 + 0.1*B_mod_rf_1800_2 + 0.75*C_mod_rf_1800_2
+points_rf_1800_3 = 0.15*A_mod_rf_1800_3 + 0.1*B_mod_rf_1800_3 + 0.75*C_mod_rf_1800_3
+
+#score chart
+#600
+score_chart <- rbind(score_chart,list(64,'Model_8','mod8_rf_600_1',600,A_mod_rf_600_1, B_mod_rf_600_1, C_mod_rf_600_1,points_rf_600_1))
+score_chart <- rbind(score_chart,list(65,'Model_8','mod8_rf_600_2',600,A_mod_rf_600_2, B_mod_rf_600_2, C_mod_rf_600_2,points_rf_600_2))
+score_chart <- rbind(score_chart,list(66,'Model_8','mod8_rf_600_2',600,A_mod_rf_600_3, B_mod_rf_600_3, C_mod_rf_600_3,points_rf_600_3))
+#1200
+score_chart <- rbind(score_chart,list(67,'Model_8','mod8_rf_1200_1',1200,A_mod_rf_1200_1, B_mod_rf_1200_1, C_mod_rf_1200_1,points_rf_1200_1))
+score_chart <- rbind(score_chart,list(68,'Model_8','mod8_rf_1200_2',1200,A_mod_rf_1200_2, B_mod_rf_1200_2, C_mod_rf_1200_2,points_rf_1200_2))
+score_chart <- rbind(score_chart,list(69,'Model_8','mod8_rf_1200_3',1200,A_mod_rf_1200_3, B_mod_rf_1200_3, C_mod_rf_1200_3,points_rf_1200_3))
+#1800
+score_chart <- rbind(score_chart,list(70,'Model_8','mod8_rf_1800_1',1800,A_mod_rf_1800_1, B_mod_rf_1800_1, C_mod_rf_1800_1,points_rf_1800_1))
+score_chart <- rbind(score_chart,list(71,'Model_8','mod8_rf_1800_2',1800,A_mod_rf_1800_2, B_mod_rf_1800_2, C_mod_rf_1800_2,points_rf_1800_2))
+score_chart <- rbind(score_chart,list(72,'Model_8','mod8_rf_1800_3',1800,A_mod_rf_1800_3, B_mod_rf_1800_3, C_mod_rf_1800_3,points_rf_1800_3))
+
+```
+
+```{r load_model8,echo = FALSE, warning=FALSE, message=FALSE}
+
+datatable(score_chart[c(64:72),], rownames = FALSE)
+
+
+```
+
+### Model 9
+```{r code_model9_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+#generalized boosted regression 
+
+#600
+time_gbm_600_1 = Sys.time()
+mod_gbm_600_1 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_600_1, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5) 
+time_gbm_600_2 = Sys.time()
+mod_gbm_600_2 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_600_2, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5) 
+time_gbm_600_3 = Sys.time()
+mod_gbm_600_3 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_600_3, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5) 
+time_gbm_600_4 = Sys.time()
+#1200
+time_gbm_1200_1 = Sys.time()
+mod_gbm_1200_1 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_1200_1, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5) 
+time_gbm_1200_2 = Sys.time()
+mod_gbm_1200_2 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_1200_2, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5)
+time_gbm_1200_3 = Sys.time()
+mod_gbm_1200_3 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_1200_3, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5)
+time_gbm_1200_4 = Sys.time()
+#1800
+time_gbm_1800_1 = Sys.time()
+mod_gbm_1800_1 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_1800_1, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5)
+time_gbm_1800_2 = Sys.time()
+mod_gbm_1800_2 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_1800_2, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5)
+time_gbm_1800_3 = Sys.time()
+mod_gbm_1800_3 = gbm(as.numeric(as.factor(label)) ~ ., data = dat_1800_3, distribution = "gaussian", n.trees = 100, shrinkage = 0.1,interaction.depth = 3, bag.fraction = 0.5, train.fraction = 0.5)
+time_gbm_1800_4 = Sys.time()
+
+#prediction
+#600
+pred_gbm_600_1 = predict(mod_gbm_600_1, data = test)
+pred_gbm_600_2 = predict(mod_gbm_600_2, data = test)
+pred_gbm_600_3 = predict(mod_gbm_600_3, data = test)
+#1200
+pred_gbm_1200_1 = predict(mod_gbm_1200_1, data = test)
+pred_gbm_1200_2 = predict(mod_gbm_1200_2, data = test)
+pred_gbm_1200_3 = predict(mod_gbm_1200_3, data = test)
+#1800
+pred_gbm_1800_1 = predict(mod_gbm_1800_1, data = test)
+pred_gbm_1800_2 = predict(mod_gbm_1800_2, data = test)
+pred_gbm_1800_3 = predict(mod_gbm_1800_3, data = test)
+
+#misclassified proportion
+#600
+accu_gbm_600_1 = mean(pred_gbm_600_1)/8
+accu_gbm_600_2 = mean(pred_gbm_600_2)/8
+accu_gbm_600_3 = mean(pred_gbm_600_3)/8
+#1200
+accu_gbm_1200_1 = mean(pred_gbm_1200_1)/8
+accu_gbm_1200_2 = mean(pred_gbm_1200_2)/8
+accu_gbm_1200_3 = mean(pred_gbm_1200_3)/8
+#1800
+accu_gbm_1800_1 = mean(pred_gbm_1800_1)/8
+accu_gbm_1800_2 = mean(pred_gbm_1800_2)/8
+accu_gbm_1800_3 = mean(pred_gbm_1800_3)/8
+
+#A
+#600
+A_mod_gbm_600_1 = nrow(dat_600_1)/nrow(dat)
+A_mod_gbm_600_2 = nrow(dat_600_2)/nrow(dat)
+A_mod_gbm_600_3 = nrow(dat_600_3)/nrow(dat)
+#1200
+A_mod_gbm_1200_1 = nrow(dat_1200_1)/nrow(dat)
+A_mod_gbm_1200_2 = nrow(dat_1200_2)/nrow(dat)
+A_mod_gbm_1200_3 = nrow(dat_1200_3)/nrow(dat)
+#1800
+A_mod_gbm_1800_1 = nrow(dat_1800_1)/nrow(dat)
+A_mod_gbm_1800_2 = nrow(dat_1800_2)/nrow(dat)
+A_mod_gbm_1800_3 = nrow(dat_1800_3)/nrow(dat)
+
+#B
+#600
+B_mod_gbm_600_1 = min(1,as.numeric(time_gbm_600_2 - time_gbm_600_1))
+B_mod_gbm_600_2 = min(1,as.numeric(time_gbm_600_3 - time_gbm_600_2))
+B_mod_gbm_600_3 = min(1,as.numeric(time_gbm_600_4 - time_gbm_600_3))
+#1200
+B_mod_gbm_1200_1 = min(1,as.numeric(time_gbm_1200_2 - time_gbm_1200_1))
+B_mod_gbm_1200_2 = min(1,as.numeric(time_gbm_1200_3 - time_gbm_1200_2))
+B_mod_gbm_1200_3 = min(1,as.numeric(time_gbm_1200_4 - time_gbm_1200_3))
+#1800
+B_mod_gbm_1800_1 = min(1,as.numeric(time_gbm_1800_2 - time_gbm_1800_1))
+B_mod_gbm_1800_2 = min(1,as.numeric(time_gbm_1800_3 - time_gbm_1800_2))
+B_mod_gbm_1800_3 = min(1,as.numeric(time_gbm_1800_4 - time_gbm_1800_3))
+
+#C
+#600
+C_mod_gbm_600_1 = 1 - accu_gbm_600_1
+C_mod_gbm_600_2 = 1 - accu_gbm_600_2
+C_mod_gbm_600_3 = 1 - accu_gbm_600_3
+#1200
+C_mod_gbm_1200_1 = 1 - accu_gbm_1200_1
+C_mod_gbm_1200_2 = 1 - accu_gbm_1200_2
+C_mod_gbm_1200_3 = 1 - accu_gbm_1200_3
+#1800
+C_mod_gbm_1800_1 = 1 - accu_gbm_1800_1
+C_mod_gbm_1800_2 = 1 - accu_gbm_1800_2
+C_mod_gbm_1800_3 = 1 - accu_gbm_1800_3
+
+#points
+#600
+points_gbm_600_1 = 0.15*A_mod_gbm_600_1 + 0.1*B_mod_gbm_600_1 + 0.75*C_mod_gbm_600_1
+points_gbm_600_2 = 0.15*A_mod_gbm_600_2 + 0.1*B_mod_gbm_600_2 + 0.75*C_mod_gbm_600_2
+points_gbm_600_3 = 0.15*A_mod_gbm_600_3 + 0.1*B_mod_gbm_600_3 + 0.75*C_mod_gbm_600_3
+#1200
+points_gbm_1200_1 = 0.15*A_mod_gbm_1200_1 + 0.1*B_mod_gbm_1200_1 + 0.75*C_mod_gbm_1200_1
+points_gbm_1200_2 = 0.15*A_mod_gbm_1200_2 + 0.1*B_mod_gbm_1200_2 + 0.75*C_mod_gbm_1200_2
+points_gbm_1200_3 = 0.15*A_mod_gbm_1200_3 + 0.1*B_mod_gbm_1200_3 + 0.75*C_mod_gbm_1200_3
+#1800
+points_gbm_1800_1 = 0.15*A_mod_gbm_1800_1 + 0.1*B_mod_gbm_1800_1 + 0.75*C_mod_gbm_1800_1
+points_gbm_1800_2 = 0.15*A_mod_gbm_1800_2 + 0.1*B_mod_gbm_1800_2 + 0.75*C_mod_gbm_1800_2
+points_gbm_1800_3 = 0.15*A_mod_gbm_1800_3 + 0.1*B_mod_gbm_1800_3 + 0.75*C_mod_gbm_1800_3
+
+#score chart
+#600
+score_chart <- rbind(score_chart,list(73,'Model_9','mod9_gbm_600_1',600,A_mod_gbm_600_1, B_mod_gbm_600_1, C_mod_gbm_600_1,points_gbm_600_1))
+score_chart <- rbind(score_chart,list(74,'Model_9','mod9_gbm_600_2',600,A_mod_gbm_600_2, B_mod_gbm_600_2, C_mod_gbm_600_2,points_gbm_600_2))
+score_chart <- rbind(score_chart,list(75,'Model_9','mod9_gbm_600_2',600,A_mod_gbm_600_3, B_mod_gbm_600_3, C_mod_gbm_600_3,points_gbm_600_3))
+#1200
+score_chart <- rbind(score_chart,list(76,'Model_9','mod9_gbm_1200_1',1200,A_mod_gbm_1200_1, B_mod_gbm_1200_1, C_mod_gbm_1200_1,points_gbm_1200_1))
+score_chart <- rbind(score_chart,list(77,'Model_9','mod9_gbm_1200_2',1200,A_mod_gbm_1200_2, B_mod_gbm_1200_2, C_mod_gbm_1200_2,points_gbm_1200_2))
+score_chart <- rbind(score_chart,list(78,'Model_9','mod9_gbm_1200_3',1200,A_mod_gbm_1200_3, B_mod_gbm_1200_3, C_mod_gbm_1200_3,points_gbm_1200_3))
+#1800
+score_chart <- rbind(score_chart,list(79,'Model_9','mod9_gbm_1800_1',1800,A_mod_gbm_1800_1, B_mod_gbm_1800_1, C_mod_gbm_1800_1,points_gbm_1800_1))
+score_chart <- rbind(score_chart,list(80,'Model_9','mod9_gbm_1800_2',1800,A_mod_gbm_1800_2, B_mod_gbm_1800_2, C_mod_gbm_1800_2,points_gbm_1800_2))
+score_chart <- rbind(score_chart,list(81,'Model_9','mod9_gbm_1800_3',1800,A_mod_gbm_1800_3, B_mod_gbm_1800_3, C_mod_gbm_1800_3,points_gbm_1800_3))
+
+```
+
+```{r load_model9,echo = FALSE, warning=FALSE, message=FALSE}
+
+datatable(score_chart[c(73:81),], rownames = FALSE)
+
+```
+
+
+### Model 10
+
+```{r load_model10,echo = FALSE, warning=FALSE, message=FALSE}
+#classification tree complex
+
+#600_1
+train<-dat_600_1
+test<-dat_test
+time0<-Sys.time()
+mod10_ctc_600_1 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_600_1 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_600_1=accuracy
+time_ctc_600_1<-(time1-time0)
+
+A_mod10_ctc_600_1 = nrow(dat_600_1)/nrow(dat)
+
+B_mod10_ctc_600_1 = min(1,as.numeric(time_ctc_600_1))
+
+C_mod10_ctc_600_1 = 1 - accu_ctc_600_1
+
+points_ctc_600_1 = 0.15*A_mod10_ctc_600_1 + 0.1*B_mod10_ctc_600_1 + 0.75*C_mod10_ctc_600_1
+
+score_chart <- rbind(score_chart,list(82, 'Model_10', 'mod10_ctc_600_1', 600, 
+                          A_mod10_ctc_600_1, B_mod10_ctc_600_1, C_mod10_ctc_600_1, 
+                          0.15 * A_mod10_ctc_600_1 + 0.1 * B_mod10_ctc_600_1 + 0.75 * C_mod10_ctc_600_1))
+
+
+
+
+#600_2
+
+train<-dat_600_2
+test<-dat_test
+
+time0<-Sys.time()
+mod10_ctc_600_2 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_600_2 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_600_2=accuracy
+time_ctc_600_2<-(time1-time0)
+
+A_mod10_ctc_600_2 = nrow(dat_600_2)/nrow(dat)
+
+B_mod10_ctc_600_2 = min(1,as.numeric(time_ctc_600_2))
+
+C_mod10_ctc_600_2 = 1 - accu_ctc_600_2
+
+points_ctc_600_2 = 0.15*A_mod10_ctc_600_2 + 0.1*B_mod10_ctc_600_2 + 0.75*C_mod10_ctc_600_2
+
+
+
+score_chart <- rbind(score_chart,list(83, 'Model_10', 'mod10_ctc_600_2', 600, 
+                          A_mod10_ctc_600_2, B_mod10_ctc_600_2, C_mod10_ctc_600_2, 
+                          0.15 * A_mod10_ctc_600_2 + 0.1 * B_mod10_ctc_600_2 + 0.75 * C_mod10_ctc_600_2))
+
+
+
+
+#600_3
+
+train<-dat_600_3
+test<-dat_test
+
+time0<-Sys.time()
+mod10_ctc_600_3 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_600_3 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_600_3=accuracy
+time_ctc_600_3<-(time1-time0)
+
+A_mod10_ctc_600_3 = nrow(dat_600_3)/nrow(dat)
+
+B_mod10_ctc_600_3 = min(1,as.numeric(time_ctc_600_3))
+
+C_mod10_ctc_600_3 = 1 - accu_ctc_600_3
+
+points_ctc_600_3 = 0.15*A_mod10_ctc_600_3 + 0.1*B_mod10_ctc_600_3 + 0.75*C_mod10_ctc_600_3
+
+score_chart <- rbind(score_chart,list(84, 'Model_10', 'mod10_ctc_600_3', 600, 
+                          A_mod10_ctc_600_3, B_mod10_ctc_600_3, C_mod10_ctc_600_3, 
+                          0.15 * A_mod10_ctc_600_3 + 0.1 * B_mod10_ctc_600_3 + 0.75 * C_mod10_ctc_600_3))
+
+
+
+
+
+#1200_1
+
+train<-dat_1200_1
+test<-dat_test
+
+time0<-Sys.time()
+mod10_ctc_1200_1 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_1200_1 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_1200_1=accuracy
+time_ctc_1200_1<-(time1-time0)
+
+A_mod10_ctc_1200_1 = nrow(dat_1200_1)/nrow(dat)
+
+B_mod10_ctc_1200_1 = min(1,as.numeric(time_ctc_1200_1))
+
+C_mod10_ctc_1200_1 = 1 - accu_ctc_1200_1
+
+points_ctc_1200_1 = 0.15*A_mod10_ctc_1200_1 + 0.1*B_mod10_ctc_1200_1 + 0.75*C_mod10_ctc_1200_1
+
+score_chart <- rbind(score_chart,list(85, 'Model_10', 'mod10_ctc_1200_1', 1200, 
+                          A_mod10_ctc_1200_1, B_mod10_ctc_1200_1, C_mod10_ctc_1200_1, 
+                          0.15 * A_mod10_ctc_1200_1 + 0.1 * B_mod10_ctc_1200_1 + 0.75 * C_mod10_ctc_1200_1))
+
+
+
+
+
+#1200_2
+
+train<-dat_1200_2
+test<-dat_test
+
+time0<-Sys.time()
+mod10_ctc_1200_2 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_1200_2 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_1200_2=accuracy
+time_ctc_1200_2<-(time1-time0)
+
+A_mod10_ctc_1200_2 = nrow(dat_1200_2)/nrow(dat)
+
+B_mod10_ctc_1200_2 = min(1,as.numeric(time_ctc_1200_2))
+
+C_mod10_ctc_1200_2 = 1 - accu_ctc_1200_2
+
+points_ctc_1200_2 = 0.15*A_mod10_ctc_1200_2 + 0.1*B_mod10_ctc_1200_2 + 0.75*C_mod10_ctc_1200_2
+
+score_chart <- rbind(score_chart,list(86, 'Model_10', 'mod10_ctc_1200_2', 1200, 
+                          A_mod10_ctc_1200_2, B_mod10_ctc_1200_2, C_mod10_ctc_1200_2, 
+                          0.15 * A_mod10_ctc_1200_2 + 0.1 * B_mod10_ctc_1200_2 + 0.75 * C_mod10_ctc_1200_2))
+
+
+
+
+
+
+#1200_3
+
+train<-dat_1200_3
+test<-dat_test
+
+time0<-Sys.time()
+mod10_ctc_1200_3 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_1200_3 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_1200_3=accuracy
+time_ctc_1200_3<-(time1-time0)
+
+A_mod10_ctc_1200_3 = nrow(dat_1200_3)/nrow(dat)
+
+B_mod10_ctc_1200_3 = min(1,as.numeric(time_ctc_1200_3))
+
+C_mod10_ctc_1200_3 = 1 - accu_ctc_1200_3
+
+points_ctc_1200_3 = 0.15*A_mod10_ctc_1200_3 + 0.1*B_mod10_ctc_1200_3 + 0.75*C_mod10_ctc_1200_3
+
+score_chart <- rbind(score_chart,list(87, 'Model_10', 'mod10_ctc_1200_3', 1200, 
+                          A_mod10_ctc_1200_3, B_mod10_ctc_1200_3, C_mod10_ctc_1200_3, 
+                          0.15 * A_mod10_ctc_1200_3 + 0.1 * B_mod10_ctc_1200_3 + 0.75 * C_mod10_ctc_1200_3))
+
+
+
+
+
+
+
+#1800_1
+
+train<-dat_1800_1
+test<-dat_test
+
+time0<-Sys.time()
+mod10_ctc_1800_1 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_1800_1 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_1800_1=accuracy
+time_ctc_1800_1<-(time1-time0)
+
+A_mod10_ctc_1800_1 = nrow(dat_1800_1)/nrow(dat)
+
+B_mod10_ctc_1800_1 = min(1,as.numeric(time_ctc_1800_1))
+
+C_mod10_ctc_1800_1 = 1 - accu_ctc_1800_1
+
+points_ctc_1800_1 = 0.15*A_mod10_ctc_1800_1 + 0.1*B_mod10_ctc_1800_1 + 0.75*C_mod10_ctc_1800_1
+
+
+score_chart <- rbind(score_chart,list(88, 'Model_10', 'mod10_ctc_1800_1', 1800, 
+                          A_mod10_ctc_1800_1, B_mod10_ctc_1800_1, C_mod10_ctc_1800_1, 
+                          0.15 * A_mod10_ctc_1800_1 + 0.1 * B_mod10_ctc_1800_1 + 0.75 * C_mod10_ctc_1800_1))
+
+
+
+
+
+
+
+
+
+#1800_2
+
+train<-dat_1800_2
+test<-dat_test
+
+time0<-Sys.time()
+mod10_ctc_1800_2 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_1800_2 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_1800_2=accuracy
+time_ctc_1800_2<-(time1-time0)
+
+A_mod10_ctc_1800_2 = nrow(dat_1800_2)/nrow(dat)
+
+B_mod10_ctc_1800_2 = min(1,as.numeric(time_ctc_1800_2))
+
+C_mod10_ctc_1800_2 = 1 - accu_ctc_1800_2
+
+points_ctc_1800_2 = 0.15*A_mod10_ctc_1800_2 + 0.1*B_mod10_ctc_1800_2 + 0.75*C_mod10_ctc_1800_2
+
+score_chart <- rbind(score_chart,list(89, 'Model_10', 'mod10_ctc_1800_2', 1800, 
+                          A_mod10_ctc_1800_2, B_mod10_ctc_1800_2, C_mod10_ctc_1800_2, 
+                          0.15 * A_mod10_ctc_1800_2 + 0.1 * B_mod10_ctc_1800_2 + 0.75 * C_mod10_ctc_1800_2))
+
+
+
+
+
+
+#1800_3
+
+train<-dat_1800_3
+test<-dat_test
+
+time0<-Sys.time()
+mod10_ctc_1800_3 = rpart(label~.,data=train,method='class',cp=0.004)
+time1<-Sys.time() 
+pred=predict(mod10_ctc_1800_3 , newdata=test,type = 'class')
+ct = table(label= test$label, predictions = pred)
+accuracy=sum(ct[1,1],ct[2,2],ct[3,3],ct[4,4],ct[5,5],ct[6,6],ct[7,7],ct[8,8],ct[9,9],ct[10,10])/nrow(test)
+accu_ctc_1800_3=accuracy
+time_ctc_1800_3<-(time1-time0)
+
+A_mod10_ctc_1800_3 = nrow(dat_1800_3)/nrow(dat)
+
+B_mod10_ctc_1800_3 = min(1,as.numeric(time_ctc_1800_3))
+
+C_mod10_ctc_1800_3 = 1 - accu_ctc_1800_3
+
+points_ctc_1800_3 = 0.15*A_mod10_ctc_1800_3 + 0.1*B_mod10_ctc_1800_3 + 0.75*C_mod10_ctc_1800_3
+
+score_chart <- rbind(score_chart,list(90, 'Model_10', 'mod10_ctc_1800_3', 1800, 
+                          A_mod10_ctc_1800_3, B_mod10_ctc_1800_3, C_mod10_ctc_1800_3, 
+                          0.15 * A_mod10_ctc_1800_3 + 0.1 * B_mod10_ctc_1800_3 + 0.75 * C_mod10_ctc_1800_3))
+
+score_chart 
+
+```
+
+
+### Model 11
+
+
+```{r code_model11_development, eval = TRUE,echo = FALSE, warning=FALSE, message=FALSE}
+
+# calculate SVM with radial
+
+svm.calculator.radial <- function(train_dat_norm, test_dat_norm,train_dat,g_value,c_value, model_num, k_type){
+  
+  library(e1071)
+  model = svm(formula = label ~ ., data = train_dat_norm, type = 'C-classification', kernel = k_type, gamma = g_value, cost = c_value, cross = 5)
+  
+  
+  A <- nrow(train_dat_norm)/nrow(dat)
+  B <- min(1,system.time(svm(formula = label ~ ., data = train_dat_norm, type = 'C-classification', kernel = k_type, gamma = g_value, cost = c_value, cross = 5))[1]/60)
+  
+  # calculate C
+  # fit model 
+  svm_pred = predict(model, newdata = test_dat_norm[,c(2:50)])
+  C = 1 - mean(test_dat_norm$label == svm_pred)
+  
+  # Score 
+  Score <- 0.15 * A + 0.1 * B + 0.75 * C 
+  
+  df <- data.frame(model_num, nrow(train_dat_norm), A, B, C, Score)
+  return(df)
+}
+
+```
+
+
+```{r load_model11,echo = FALSE, warning=FALSE, message=FALSE}
+
+# load svm model 
+
+svmscores_20 <- data.frame(rbind(
+          svm.calculator.radial(dat_600_1_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial'),
+          svm.calculator.radial(dat_600_2_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial'),
+          svm.calculator.radial(dat_600_3_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial'),     
+          svm.calculator.radial(dat_1200_1_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial'),
+          svm.calculator.radial(dat_1200_2_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial'),
+          svm.calculator.radial(dat_1200_3_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial'),
+          svm.calculator.radial(dat_1800_1_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial'),
+          svm.calculator.radial(dat_1800_2_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial'),
+          svm.calculator.radial(dat_1800_3_svm,dat_test_svm,dat, 0.001,20, 'Model_11', 'radial')
+          ))
+
+
+score_chart <- rbind(score_chart,list(91:99, svmscores_20$model_num,c('mod11_svm_600_1','mod11_svm_600_2','mod11_svm_600_3', 'mod11_svm_1200_1','mod11_svm_1200_2','mod11_svm_1200_3','mod11_svm_1800_1','mod11_svm_1800_2','mod11_svm_1800_3'),svmscores_20$nrow.train_dat_norm.,svmscores_20$A, svmscores_20$B, svmscores_20$C,svmscores_20$Score))
+
+datatable(score_chart[c(91:99),], rownames = FALSE)
+
+```
+
+
+
+### Scoreboard
+
+```{r scoreboard}
+
+datatable(score_chart, rownames = FALSE)
+
+fwrite(score_chart, "model_output.csv")
+
+```
+
+## Discussion
+
+
+## Model Development Responsibilities
+
+For the 10 models, please list the names of the developers along with percentages for how the responsibilities were divided.<br>
+
+1.  Syed Ahsan Bukhari - KNN (100%)
+2.  Syed Ahsan Bukhari - KNN (100%)
+3.  Syed Ahsan Bukhari - SVM Linear (100%)
+4.  Huizhe Zhu - Classification Tree (100%)
+5.  Huizhe Zhu - Lasso Ridge (100%)
+6.  Huizhe Zhu - Lasso Ridge (100%)
+7.  Yichen Dong - Random Forest (100%)
+8.  Yichen Dong - Random Forest (100%)
+9.  Yichen Dong - GBM (100%)
+10. Jiaxuan Wang - Classification Tree Complex (100%)
+11. Jiaxuan Wang - SVM Radial (100%)
+
+## References
+
+
